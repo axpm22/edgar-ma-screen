@@ -9,6 +9,21 @@ predictable — from structure rather than from either model's timing signal.**
 Two of the four stress tests pass cleanly, one refutes its own hypothesis, and
 one turns out to be uninformative in both directions.
 
+## The three questions, side by side
+
+| Question | How often right | Lift vs chance |
+|---|---|---|
+| Will this company be acquired? (target, 25/week) | **11.7%** | 7.0× |
+| Will this company acquire someone? (buyer, 25/week) | **23.9%** | 13.2× |
+| Told the target — who is the buyer? (top 100 of ~7,138) | **34.3%** | 24.5× |
+| Nothing given — name both ends of one deal | **2.2%** | — |
+
+Buying is roughly twice as predictable as being bought. Pairing, *conditional*
+on already knowing the target, is the strongest of the three in lift terms and
+the weakest in absolute terms — it produces a shortlist, not a name. Run
+end-to-end with nothing given, the chain succeeds on 3 of 137 deals. Details in
+§2 and §2.1.
+
 ---
 
 ## 0. The new asset: a free (acquirer, target) pair table
@@ -143,6 +158,36 @@ Caveats not to drop: the trained model rests on **53 training pairs** — the
 limitation of how `pair_scores.py` was built. The hard-negative rows above are
 untrained heuristics, which is why they are more trustworthy here than the
 53-pair fit.
+
+### The 101-candidate framing flatters this by ~70×
+
+Everything above ranks the true acquirer against **100 sampled distractors**.
+That is the standard evaluation for a matching model, and it answers "can you
+beat 100 arbitrary companies" — not "can you name the buyer". Against the
+~7,138 companies actually scored in a given week:
+
+| | 101 random candidates | Real universe (7,138) |
+|---|---|---|
+| top-1 | 28.6% | **0.0%** |
+| top-10 | 73.8% | 1.5% |
+| top-100 | — | 34.3% |
+| Median rank | 3 | **202** |
+
+Still real signal — median rank 202 against a chance median of 3,569 is ~18×
+better than random, and 34.3% in the top 100 against a 1.4% chance rate is
+24.5× lift. **The model narrows ~7,000 candidate acquirers to a shortlist of
+100 that contains the right one a third of the time. It cannot name the buyer.**
+
+### End to end, with nothing given, the pipeline collapses
+
+Chain both stages — target in the top 25 that week, *then* acquirer in the top
+100 — and it succeeds on **3 of 137 deals (2.2%)** at a 4-week embargo, 2 of
+136 at 13 weeks. The bottleneck is the target side: the median real target sits
+at **rank 1,216** in its own week, and only 2.9% are in the top 25 four weeks
+before announcement.
+
+That is the number to quote if anyone asks whether this predicts deals rather
+than screens for them.
 
 ---
 
