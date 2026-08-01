@@ -1,0 +1,102 @@
+[
+  {
+    "embargo_weeks": 4,
+    "variant": "full",
+    "n_blocks": 137,
+    "train_pairs": 53,
+    "random_baseline_top1": 0.9900990099009901,
+    "top_features": [
+      "same_sic2",
+      "size_gap",
+      "log_float",
+      "log_assets",
+      "p_buyer",
+      "cash_to_assets"
+    ],
+    "n_pairs": 84,
+    "top1": 28.57142857142857,
+    "top5": 63.095238095238095,
+    "top10": 73.80952380952381,
+    "mrr": 0.4654647501556463,
+    "median_rank": 2.75,
+    "top1_ci_lo": 19.047619047619047,
+    "top1_ci_hi": 38.095238095238095,
+    "top10_ci_lo": 64.28571428571429,
+    "top10_ci_hi": 83.33333333333334
+  },
+  {
+    "embargo_weeks": 13,
+    "variant": "full",
+    "n_blocks": 136,
+    "train_pairs": 47,
+    "random_baseline_top1": 0.9900990099009901,
+    "top_features": [
+      "same_sic2",
+      "size_gap",
+      "p_buyer",
+      "log_assets",
+      "log_float",
+      "abs_size_gap"
+    ],
+    "n_pairs": 89,
+    "top1": 33.70786516853933,
+    "top5": 66.29213483146067,
+    "top10": 71.91011235955057,
+    "mrr": 0.4925985034471248,
+    "median_rank": 2.5,
+    "top1_ci_lo": 24.719101123595504,
+    "top1_ci_hi": 42.69662921348314,
+    "top10_ci_lo": 62.92134831460674,
+    "top10_ci_hi": 82.02247191011236
+  },
+  {
+    "embargo_weeks": 4,
+    "variant": "no_sector",
+    "n_blocks": 137,
+    "train_pairs": 53,
+    "random_baseline_top1": 0.9900990099009901,
+    "top_features": [
+      "same_sic2",
+      "size_gap",
+      "log_float",
+      "log_assets",
+      "p_buyer",
+      "cash_to_assets"
+    ],
+    "n_pairs": 84,
+    "top1": 28.57142857142857,
+    "top5": 64.28571428571429,
+    "top10": 73.80952380952381,
+    "mrr": 0.4585933077116357,
+    "median_rank": 2.75,
+    "top1_ci_lo": 19.047619047619047,
+    "top1_ci_hi": 38.095238095238095,
+    "top10_ci_lo": 64.28571428571429,
+    "top10_ci_hi": 83.33333333333334
+  },
+  {
+    "embargo_weeks": 13,
+    "variant": "no_sector",
+    "n_blocks": 136,
+    "train_pairs": 47,
+    "random_baseline_top1": 0.9900990099009901,
+    "top_features": [
+      "same_sic2",
+      "size_gap",
+      "p_buyer",
+      "log_assets",
+      "log_float",
+      "abs_size_gap"
+    ],
+    "n_pairs": 89,
+    "top1": 33.70786516853933,
+    "top5": 64.04494382022472,
+    "top10": 69.66292134831461,
+    "mrr": 0.48931963296268116,
+    "median_rank": 2.5,
+    "top1_ci_lo": 24.719101123595504,
+    "top1_ci_hi": 43.82022471910113,
+    "top10_ci_lo": 60.67415730337079,
+    "top10_ci_hi": 79.7752808988764
+  }
+]
