@@ -31,7 +31,11 @@ def test_no_forbidden_form_appears_in_the_tracked_map():
 
 def test_unrelated_forms_are_ignored():
     assert load_forms.classify("10-K") is None
-    assert load_forms.classify("424B5") is None
+    # NOT 424B5 -- prospectus supplements are deliberately tracked as the
+    # 'raise' family, the buyer-side signal that a shelf has been drawn down
+    # (see feat_buyer.py). Use forms that carry no deal signal at all.
+    assert load_forms.classify("11-K") is None
+    assert load_forms.classify("SD") is None
 
 
 @pytest.fixture
