@@ -20,6 +20,14 @@ def weekly_precision(df: pl.DataFrame, p: np.ndarray, n_per_week: int) -> dict:
         "n_per_week": n_per_week,
         "n_selected": sel.height,
         "distinct_companies": sel["cik"].n_unique(),
+        # How many distinct companies the HITS rest on. Ranking within the week
+        # stops one company owning the whole list, but it does not stop a
+        # PRECISION NUMBER resting on one company: a single firm held for 23
+        # consecutive weeks produced a 3.37x lift with a tight bootstrap CI on
+        # the tender-offer validation, because resampling weeks resamples the
+        # same company. Any result where this is in the single digits is one
+        # company's story, whatever the confidence interval says.
+        "distinct_hits": sel.filter(pl.col("y") == 1)["cik"].n_unique(),
         "precision": precision,
         "base_rate": base,
         "lift": (precision / base) if base else 0.0,
