@@ -188,12 +188,26 @@ def measure() -> dict:
 
 
 def _label_target(sc):
+    """VERIFIED targets, not raw proxy filers.
+
+    A DEFM14A is filed by whoever's shareholders vote, so 581 of 2,445 proxy
+    filers are acquirers and survivors. Charting against the raw label put the
+    target model at 13.9% -- not comparable to this project's headline, which
+    is measured on verified targets. clean_labels supplies the discriminator.
+    """
+    from deal import clean_labels
+
     con = duckdb.connect(":memory:")
     con.execute("ATTACH 'data/deal.duckdb' AS m (READ_ONLY)")
+    con.execute("CREATE TEMP VIEW deals AS SELECT * FROM m.deals")
+    con.execute("CREATE TEMP VIEW universe AS SELECT * FROM m.universe")
+    clean_labels.build(con, pl.read_parquet(
+        "data/features.parquet", columns=["week"])["week"].max())
     con.register("f", sc.select(["cik", "week"]).to_arrow())
     lab = con.execute("""
         SELECT f.cik, f.week, CASE WHEN EXISTS(
-          SELECT 1 FROM m.deals d WHERE d.cik = f.cik
+          SELECT 1 FROM deals_clean d WHERE d.cik = f.cik
+            AND d.outcome = 'target'
             AND f.week < d.agreement_date
             AND f.week >= d.agreement_date - INTERVAL 52 WEEK)
           THEN 1 ELSE 0 END AS y FROM f""").pl()
