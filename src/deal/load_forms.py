@@ -22,6 +22,13 @@ TRACKED_FORMS = {
     "DEF 14A": "def14a",
     "S-4": "s4", "S-4/A": "s4",
     "NT 10-K": "late", "NT 10-Q": "late",
+    # --- buyer-side financing capacity -------------------------------------
+    # A shelf registration is dry powder: it lets a company issue securities
+    # at short notice, which is what a stock-funded acquisition needs.
+    "S-3": "shelf", "S-3ASR": "shelf", "S-3/A": "shelf",
+    # A prospectus supplement means an offering actually happened.
+    "424B5": "raise", "424B2": "raise", "424B3": "raise",
+    "FWP": "raise",
 }
 
 SCHEMA = """
