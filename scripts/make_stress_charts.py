@@ -11,6 +11,7 @@ data/pairs.duckdb -- no model fits, ~15s. Nothing is illustrative.
     .venv/bin/python scripts/make_stress_charts.py
 """
 import json
+import sys
 from pathlib import Path
 
 import duckdb
@@ -416,7 +417,43 @@ def fig_alignment(M):
     _save(fig, "s6_alignment_null.png")
 
 
+def fig_long_cv(_M=None):
+    """Source: data/long_cv.json (scripts/long_cv.py). Seven test years under
+    two window designs. The shaded band is the three-year window the project
+    reported before -- the point of the figure is what it did not contain."""
+    rows = json.loads((DATA / "long_cv.json").read_text())
+    if not rows:
+        return
+    fig, ax = plt.subplots(figsize=(8.2, 4.4))
+    for design, col, lbl in (
+            ("expanding", BLUE, "expanding window (more data late)"),
+            ("fixed", ORANGE, "fixed 3-year window (folds comparable)")):
+        d = sorted([r for r in rows if r["design"] == design],
+                   key=lambda r: r["year"])
+        if not d:
+            continue
+        v = np.array([r["prec"] for r in d])
+        # Summary goes in the legend: annotating the last point collided with
+        # both lines converging bottom-right.
+        ax.plot([r["year"] for r in d], [r["prec"] for r in d], "-o",
+                color=col, linewidth=2, markersize=7,
+                label=f"{lbl}\n     mean {v.mean():.1f}%,  SD {v.std():.1f}")
+    ax.axvspan(2022.5, 2025.5, color=GRID, alpha=0.55, zorder=0)
+    top = ax.get_ylim()[1]
+    ax.text(2024, top * 0.985, "the three years reported before",
+            ha="center", va="top", fontsize=8.5, color=INK2)
+    ax.set_xticks([r["year"] for r in rows if r["design"] == "expanding"])
+    _style(ax, "precision @ top 25/week (%)")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.set_title("Seven test years, not three — and the extra four "
+                 "change the picture", loc="left", pad=10)
+    _save(fig, "s7_long_cv.png")
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "longcv":
+        fig_long_cv()
+        raise SystemExit
     print("measuring (no model fits)...", flush=True)
     M = measure()
     print(f"  universe {M['universe_median']:.0f}/week | "
