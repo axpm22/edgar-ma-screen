@@ -323,6 +323,58 @@ median lead is **9.3 weeks** (p25 0.9, p75 13.8, max 49.1).
 
 ---
 
+## 4.1 Is it tradeable? Palepu, measured on this panel
+
+`scripts/scope_proxy_prices.py`, `scripts/proxy_premium.py`.
+
+No free source retains price history for delisted companies, so returns remain
+uncomputable. But roughly **43% of merger proxies state the takeover premium in
+words** ("a premium of approximately 38% to the closing price"), which is
+enough to test the objection that actually matters.
+
+**Dead end first:** the quarterly high/low price tables that Reg S-K Item 201
+used to require parse in **3.3%** of 2023-24 proxies and **12%** of 2016-17.
+The SEC's 2018 disclosure simplification dropped the requirement and it was
+never reliable before it. There is no price *series* here. Cost of finding
+out: 400 MB and 20 minutes.
+
+**What the premium says.** 150 verified targets from 2023 onward, premium
+parsed for 74 (49%), 63 of which the model had scored:
+
+| | |
+|---|---|
+| Median premium, all deals | 30.5% (p25 19.9, p75 58.5) |
+| Model ranked **better** than median | **28.9%** (n=32) |
+| Model ranked **worse** than median | **36.0%** (n=31) |
+| Spearman(rank, premium) | **rho +0.294, p = 0.019** |
+| …controlling for `log_assets` | **rho +0.265, p = 0.036** |
+
+A better rank is a *smaller* number, so a positive rho means **the deals this
+model ranks highly carry systematically thinner premiums** — roughly 7pp
+thinner at the median. That is Palepu (1986) showing up directly in this
+panel's own data: the model finds targets the market has partly identified
+already, and part of the premium has been paid away before a screen could buy.
+
+The size confound is ruled out rather than assumed. Larger targets do carry
+thinner premiums (size vs premium rho **−0.453**, p < 0.001), but rank and size
+are nearly independent here (rho −0.132, p = 0.30), and the partial correlation
+survives.
+
+**Effect on the economics.** The deal leg is worth about
+10.5% × 29% ≈ **3.0% gross over 12 months**, not the 3.9% a naive 37% premium
+would suggest — before the drift on the ~90% that never transact, before costs,
+and before whatever the flagged names' starting valuations already embed.
+
+**Caveats that bound this.** n = 63. The Mann-Whitney test on a median split is
+**not** significant (p = 0.316); only the continuous rank test is, and it is
+the more powerful test on the same data. Proxies quote premiums against several
+reference prices and the parser takes the first stated, which adds noise. Most
+importantly, **the 51% of proxies that state no premium may differ
+systematically** from those that do — that is a selection effect this design
+cannot rule out.
+
+---
+
 ## 5. What did not work
 
 Reported as plainly as what did:
