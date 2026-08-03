@@ -66,6 +66,22 @@ def insert(con, rows: list[dict]) -> int:
     return len(rows)
 
 
+def _quarter_loaded(con, y: int, q: int) -> bool:
+    """Has this quarter already been ingested?
+
+    This matters more here than anywhere else in the pipeline: the insert is
+    ON CONFLICT DO UPDATE SET n = n + 1, so re-running a quarter does not
+    no-op, it DOUBLES every count in it. That is silent -- no error, no row
+    count change, just inflated features. Skipping loaded quarters makes the
+    loader resumable and removes the only non-idempotent write in the project.
+    """
+    start = dt.date(y, (q - 1) * 3 + 1, 1)
+    end = dt.date(y + (q == 4), (q * 3) % 12 + 1, 1)
+    return con.execute(
+        "SELECT count(*) FROM form_events WHERE public_ts >= ? AND public_ts < ?",
+        [start, end]).fetchone()[0] > 0
+
+
 def load(con, start_year: int, end_year: int, verbose: bool = True) -> int:
     init_schema(con)
     today = dt.date.today()
@@ -73,6 +89,10 @@ def load(con, start_year: int, end_year: int, verbose: bool = True) -> int:
     for year, q in universe.quarters(start_year, end_year):
         if dt.date(year, (q - 1) * 3 + 1, 1) > today:
             break
+        if _quarter_loaded(con, year, q):
+            if verbose:
+                print(f"  {year}Q{q}: already loaded, skipping", flush=True)
+            continue
         try:
             raw = fetch.sec_get(config.IDX_URL.format(year=year, q=q))
         except Exception:
