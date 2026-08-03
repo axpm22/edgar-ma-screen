@@ -1,9 +1,10 @@
 """Load the three new data sources. Run: python scripts/load_extras.py <stage>"""
 import sys
 
-from deal import load_fts, load_fund, load_insider_value, warehouse
+from deal import (config, load_fts, load_fund, load_insider_value,
+                  warehouse)
 
-START, END = 2016, 2026
+START, END = config.PANEL_START_YEAR, config.PANEL_END_YEAR
 
 
 def stage_fts(con):

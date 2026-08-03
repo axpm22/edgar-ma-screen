@@ -77,7 +77,11 @@ def build(con, start: dt.date, end: dt.date) -> int:
 
     if not out:
         return 0
-    con.executemany("INSERT OR IGNORE INTO panel VALUES ($cik, $week)", out)
+    # Columns named, not positional: label() adds `y` via ALTER TABLE, so on
+    # any REBUILD the table has three columns and a positional insert fails
+    # with a BinderException. The pipeline only ever worked from empty.
+    con.executemany(
+        "INSERT OR IGNORE INTO panel (cik, week) VALUES ($cik, $week)", out)
     return len(out)
 
 

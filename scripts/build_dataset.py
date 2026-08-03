@@ -17,7 +17,7 @@ import time
 from deal import (config, crosswalk, fetch, load_fund, load_insider, load_sic,
                   panel, universe, warehouse)
 
-START_YEAR, END_YEAR = 2016, 2026
+START_YEAR, END_YEAR = config.PANEL_START_YEAR, config.PANEL_END_YEAR
 HORIZON_WEEKS = config.HORIZON_WEEKS
 
 
@@ -49,10 +49,29 @@ def stage_index(con) -> None:
     print(f"[index] {crosswalk.build_names(con):,} crosswalk names", flush=True)
 
 
+def _quarter_loaded(con, table: str, y: int, q: int) -> bool:
+    """Has this quarter already been ingested?
+
+    The insert is INSERT OR IGNORE, so re-running is harmless but costs a full
+    unzip and parse per quarter -- 60 quarters of that is half an hour of work
+    to add nothing. The DERA quarterly file contains filings FILED in that
+    quarter, so a non-empty date range is a reliable marker.
+    """
+    start = dt.date(y, (q - 1) * 3 + 1, 1)
+    end = dt.date(y + (q == 4), (q * 3) % 12 + 1, 1)
+    n = con.execute(
+        f"SELECT count(*) FROM {table} WHERE public_ts >= ? AND public_ts < ?",
+        [start, end]).fetchone()[0]
+    return n > 0
+
+
 def stage_insider(con) -> None:
     print("[insider] Form 3/4/5 data sets", flush=True)
     total = 0
     for y, q in _quarters():
+        if _quarter_loaded(con, "insider_trans", y, q):
+            print(f"  {y}Q{q}: already loaded, skipping", flush=True)
+            continue
         try:
             n = load_insider.load_quarter(con, y, q)
         except Exception as exc:

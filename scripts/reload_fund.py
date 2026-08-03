@@ -4,14 +4,14 @@ Writes to a side database: deal.duckdb is held read-only by the 8-K item
 job, and DuckDB allows one writer.
 """
 import time
-from deal import load_fund, warehouse
+from deal import config, load_fund, warehouse
 
 con = warehouse.connect("data/fund2.duckdb")
 con.execute("""CREATE TABLE IF NOT EXISTS fundamentals (
     cik VARCHAR, tag VARCHAR, public_ts DATE, value DOUBLE,
     PRIMARY KEY (cik, tag, public_ts))""")
 t0 = time.time()
-n = load_fund.load_all(con, 2016, 2026)
+n = load_fund.load_all(con, config.PANEL_START_YEAR, config.PANEL_END_YEAR)
 print(f"\n{n:,} facts in {time.time()-t0:.0f}s")
 for t, c, co in con.execute(
         "SELECT tag, count(*), count(DISTINCT cik) FROM fundamentals "

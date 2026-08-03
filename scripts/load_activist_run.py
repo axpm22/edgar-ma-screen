@@ -1,8 +1,8 @@
 """Activist identification from 13D filer/subject pairing."""
-from deal import load_activist, warehouse
+from deal import config, load_activist, warehouse
 
 con = warehouse.connect("data/activist.duckdb")
-n = load_activist.load(con, 2016, 2026)
+n = load_activist.load(con, config.PANEL_START_YEAR, config.PANEL_END_YEAR)
 print(f"activist events: {n:,}")
 print("subjects:", con.execute("SELECT count(DISTINCT cik) FROM activist_events").fetchone()[0])
 print("reach distribution:")

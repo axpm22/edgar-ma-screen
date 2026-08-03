@@ -1,6 +1,6 @@
 """Fetch 8-K item codes for every company in the universe."""
 import duckdb
-from deal import load_items, warehouse
+from deal import config, load_items, warehouse
 
 con = warehouse.connect("data/items.duckdb")
 load_items.init_schema(con)
@@ -15,7 +15,7 @@ print(f"{len(todo):,} companies to fetch", flush=True)
 total = 0
 for i, cik in enumerate(todo, 1):
     try:
-        total += load_items.insert(con, load_items.fetch_company(cik, 2016))
+        total += load_items.insert(con, load_items.fetch_company(cik, config.PANEL_START_YEAR))
     except Exception:
         pass
     if i % 500 == 0:

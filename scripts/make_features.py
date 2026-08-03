@@ -20,7 +20,10 @@ def main() -> None:
     con.execute("ATTACH 'data/float.duckdb' AS f (READ_ONLY)")
     con.execute("ATTACH 'data/fund2.duckdb' AS fd (READ_ONLY)")
     con.execute("ATTACH 'data/items.duckdb' AS it (READ_ONLY)")
-    con.execute("ATTACH 'data/forms.duckdb' AS fm (READ_ONLY)")
+    # forms2, not forms: identical on the six shared families and adds shelf
+    # and raise, so the old 6-family database is dead weight. Verified equal
+    # family-by-family before switching.
+    con.execute("ATTACH 'data/forms2.duckdb' AS fm (READ_ONLY)")
     con.execute("ATTACH 'data/activist.duckdb' AS av (READ_ONLY)")
     con.execute("ATTACH 'data/ct.duckdb' AS ctdb (READ_ONLY)")
     con.execute("USE m")
