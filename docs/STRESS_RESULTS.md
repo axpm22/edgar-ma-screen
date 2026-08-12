@@ -65,7 +65,7 @@ independently from SEC-HEADER blocks by a different parser.
 | All SC TO-T pairs | 340/341 = 99.7% |
 | **Both parties are SEC filers** | **157/158 = 99.4%** |
 
-Quote the second. 327 of 1,371 episodes have an acquirer absent from
+Quote the second. 477 of 1,952 episodes have an acquirer absent from
 `universe` — foreign or private buyers such as Roche Holdings that file no
 periodic reports. A non-filer cannot "stop filing", so it is assigned acquirer
 trivially, which inflates the easy end of the first denominator. Zero episodes
