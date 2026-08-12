@@ -1,4 +1,4 @@
-# edgar-acquisition-signals
+# edgar-ma-screen
 
 Predicting corporate acquisitions from free SEC filings.
 
@@ -43,7 +43,7 @@ eleven years — so no single year should be quoted on its own.
 |---|---|
 | Permutation, target — refit on labels shuffled within week | null tops out well below real |
 | Permutation, buyer — never run before | real 23.9% against a null max of 5.5% |
-| Embargo — blank the 8 and 16 weeks before each deal | flat, so it is not reading post-announcement filings |
+| Embargo — blank the 8 and 16 weeks before each deal | 20.02% → 14.31% → 14.46%: the first step costs ~28% of the edge, then it is flat from 8 to 16 weeks — which is what rules out post-announcement leakage |
 | Clean three-way split — test period never used for early stopping | holds |
 | SPACs removed from training and test | holds; lift unchanged |
 | Hazard model on verified-target labels, SEs clustered by company | 9 of 9 signals keep sign and significance |
