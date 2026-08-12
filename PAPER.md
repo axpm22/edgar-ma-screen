@@ -553,7 +553,7 @@ beaten. The reported p = 0.0476 is the floor attainable with 20 permutations
 points [`stress_pairs.json`]. Whatever the buyer model is doing, it is not
 leaking.
 
-### Embargo — and a correction to this repo's README
+### Embargo
 
 This is the leakage test that matters, because a DEFM14A is filed well after a
 deal becomes public. Measured directly on the pair table (Section 2), the gap
@@ -562,9 +562,10 @@ from the first 425 or SC TO-T to the merger proxy has a **median of 84 days**
 post-announcement filings, blanking the weeks before the proxy would destroy
 it.
 
-The README says performance is "flat" under 8- and 16-week embargoes. That is
-not what was measured. Precision goes 20.02% → 14.31% → 14.46%. The step from
-no embargo to 8 weeks costs 5.7 points, about 28% of the edge.
+Precision goes 20.02% → 14.31% → 14.46%. The step from no embargo to 8 weeks
+costs 5.7 points, about 28% of the edge. An earlier version of the README
+described this as "flat", which it is not; the README now carries these
+figures.
 
 ![embargo](docs/figures/embargo.png)
 
