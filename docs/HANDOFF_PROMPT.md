@@ -10,12 +10,17 @@ family. Then read `README.md` for current results.
 
 ## Where things stand
 
-Two models, both cross-validated across three test years with two seeds each:
+Two models, cross-validated across **eleven** test years (2015–2025) with two
+seeds each, on a panel running from 2012:
 
 | Model | Precision @25/wk | Lift | Label |
 |---|---|---|---|
-| Target | 10.74% | 6.42× | company stopped filing within 270d of its merger proxy |
-| Buyer | 26.09% | 13.37× | filed an S-4 within 12 months |
+| Target | 12.28% | 6.91× | company stopped filing within 270d of its merger proxy |
+| Buyer | 31.72% | 12.21× | filed an S-4 within 12 months |
+
+Both operating-companies-only (SPACs excluded) and buyer excludes
+self-referential features. **Compare years by lift, not precision** — deal base
+rates halved across the panel, which moves precision without moving skill.
 
 Both exclude SPACs. Both numbers are *after* removing self-referential
 features. Earlier, higher numbers in this repo's history are retracted.

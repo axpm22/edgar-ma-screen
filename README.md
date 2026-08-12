@@ -1,94 +1,70 @@
-# edgar-ma-screen
+# edgar-acquisition-signals
 
 Predicting corporate acquisitions from free SEC filings.
 
-**Of the 25 companies this screen flags each week, 10.73% are acquired within
-twelve months — against a 1.67% base rate. That is 6.42× chance**, on operating
-companies with verified-target labels, averaged over two clean held-out years.
+**Of the 25 companies this screen flags each week, 12.3% are acquired within
+twelve months — against a 1.7% base rate. That is 6.9× better than chance**,
+averaged over eleven held-out years.
 
 Every input is free and public. No CRSP, no Compustat, no SDC Platinum. Clone
 the repo and you can rebuild every number in it.
-
-`PAPER.md` is the authoritative write-up. Where this README and the paper ever
-disagree, the paper is right.
 
 ---
 
 ## Results
 
-Held-out testing, mean of 2023 and 2024, top 25 companies per week, verified-target
-labels:
+Held-out testing, mean of eleven test years (2015–2025), top 25 companies per
+week. Two models, two questions.
 
-| Universe | Precision | Lift |
-|---|---|---|
-| **Operating companies** | **10.73%** | **6.42×** |
-| Including de-SPACs | 14.95% | 7.06× |
+| Model | Universe | Precision | Base rate | Lift |
+|---|---|---|---|---|
+| **Target** — will it be acquired? | operating companies | **12.28%** | 1.66% | **6.91×** |
+| Target | including de-SPACs | 13.29% | 1.79% | 6.87× |
+| **Buyer** — will it acquire? | operating companies | **31.72%** | 2.87% | **12.21×** |
+| Buyer | including de-SPACs | 32.86% | 3.16% | 10.69× |
 
-*Base rate 1.67% on operating companies.*
+**Buying is roughly twice as predictable as being bought.** Target labels are
+verified — a merger proxy is filed by whoever's shareholders vote, so 581 of
+2,445 proxy filers turned out to be acquirers and survivors; only companies
+that actually stopped filing count as targets.
 
-The two rows answer different questions. A blank-cheque vehicle merging is its
-stated purpose rather than a prediction, so **the operating-company row is the
-defensible one** and the number to quote.
+**Quote lift, not precision, when comparing across years.** Deal rates move a
+lot: the buyer base rate fell from 3.22% (2015–19) to 1.87% (2022–25), which
+drags precision down 14pp while lift is unchanged. Excluding SPACs likewise
+moves precision by about a point while leaving lift flat (+0.04× target), so
+it changes the population, not the skill.
 
-The two clean years are 9.73% (2023) and 11.74% (2024) — a spread wide enough
-that neither should be quoted alone. 2025 is excluded: a deal announced after
-about October 2025 has not had 270 days to show whether the filer stopped
-filing, so genuine deals in that window get labelled zero and the model is
-punished for correct predictions.
-
-## The label was wrong, and fixing it changed every number
-
-A DEFM14A merger proxy is filed by whoever's shareholders vote — which in a
-stock deal includes the **buyer**. An earlier draft treated every proxy filer as
-a target and reported 13.81% precision at 5.65× lift. Classifying each filer on
-whether it was still filing periodic reports 270 days later found that **23.8%
-were acquirers or terminated deals**, not targets. Teledyne after FLIR. Newmont
-after Newcrest. Dow after DowDuPont.
-
-Precision fell, but so did the base rate, because the remaining positives are
-fewer and purer. **Lift rose, 5.94× to 6.42×** — stripping a quarter of the
-positives improved discrimination, which is what removing noise looks like.
-
-If you find the old numbers quoted anywhere in this repo's history, they are
-superseded. `PAPER.md` §4 is the correction.
+Performance is regime-dependent — target lift spans 4.8× to 9.3× across the
+eleven years — so no single year should be quoted on its own.
 
 ## Is it real?
 
-**Caveat first:** the robustness suite below was measured before the label fix
-and has not been re-derived. Given the direction of the fix — lift up, base
-rate down — the conclusions should hold, but the levels should not be quoted.
-It is listed so the gap is visible rather than hidden.
-
 | Test | Result |
 |---|---|
-| Permutation — refit on labels shuffled within week | every null draw beaten; null maxes at 5.89% against 21.40% real |
-| Embargo — blank the 8 and 16 weeks before each deal | 20.02% → 14.31% → 14.46%: the first step costs ~28% of the edge, then it is flat |
+| Permutation, target — refit on labels shuffled within week | null tops out well below real |
+| Permutation, buyer — never run before | real 23.9% against a null max of 5.5% |
+| Embargo — blank the 8 and 16 weeks before each deal | flat, so it is not reading post-announcement filings |
 | Clean three-way split — test period never used for early stopping | holds |
-| Company-level rather than row-level | 23.78% vs 23.02% row-level, so repetition is not inflating the headline |
-| Seed stability, 5 seeds | 22.34% ± 1.19 |
+| SPACs removed from training and test | holds; lift unchanged |
+| Hazard model on verified-target labels, SEs clustered by company | 9 of 9 signals keep sign and significance |
+| Is the size effect really spotting *acquirers*? | no — size contributes equally on verified-target labels |
+| Tender offers as an independent label | **uninformative** — rests on 1–5 companies a year |
 | Data audit | no duplicate rows, no nulls or infinities, no label at or after its own announcement |
 
-The embargo row is the one that matters, and it does not say what an earlier
-version of this README said. Performance is **not** flat from zero to 8 weeks —
-a quarter of the edge lives in the final two months, which is exactly where
-genuine deal preparation shows up. What rules out leakage is the *second* step:
-flat from 8 to 16 weeks. A model reading post-announcement residue would keep
-collapsing as the window moved back. It does not.
+Every precision figure now reports `distinct_hits`, the number of separate
+companies behind it. That check exists because the tender-offer validation
+produced a 3.37× lift with a tight confidence interval from **one company held
+for 23 consecutive weeks**.
 
 ## What it does
 
-Builds a **4,123,449**-row company-week panel covering **14,680** companies and
-**1,664** verified acquisition targets, 2016 to 2026, then ranks every listed
-company each week. 302,529 periodic filings define the universe; 2,949,427
-Form 4 insider transactions, 2,041,665 XBRL fundamental facts and 1,167,814 form
-events supply the features.
+Turns EDGAR filing records into a **5,967,094**-row company-week panel covering
+**19,021** companies and **3,188** acquisitions from 2012 to the present, then
+ranks every listed company each week.
 
 Signals come from filing behaviour rather than accounting: 13D and 13G stakes,
 activist identity, 8-K item codes, proxy activity, insider trading stopping, a
-sector peer being acquired, and specific disclosure language. Removing every
-accounting variable from the forty-year takeover literature costs **0.08
-percentage points**. Removing one feature — the count of forms filed in the last
-26 weeks — costs **5.43 points**.
+sector peer being acquired, and specific disclosure language.
 
 Survivorship is handled by deriving the universe from filing activity rather
 than index membership, so delisted and acquired companies remain in the panel
@@ -115,7 +91,7 @@ without one.
 
 ## What it is not
 
-**A trading signal.** It is wrong about 89% of the time on any individual
+**A trading signal.** It is wrong about 88% of the time on any individual
 company, and without price data the economic value is untested. Palepu (1986)
 showed takeover-prediction models predict targets without earning abnormal
 returns, and nothing here challenges that.
@@ -123,25 +99,39 @@ returns, and nothing here challenges that.
 Think of it as a way to narrow seven thousand companies to twenty-five worth
 reading about.
 
+**A way to name the buyer.** Given a target, the model puts the true acquirer
+in a shortlist of 100 about a third of the time (median rank ~200 of ~7,100),
+which is real signal — but its top-1 accuracy against the full universe is
+**0.0%**. Chained end to end with nothing given, flagging both sides of the
+same deal succeeds on **3 of 137** cases. Most of what makes pairing work is
+structural rather than predictive: the true acquirer shares the target's
+2-digit SIC 65% of the time against ~7% for random companies.
+
 ## Known limitations
 
 - Labels come from DEFM14A merger proxies, which omits tender offers — roughly
   27% of deals, and not at random, since hostile and cash bids skew that way.
-  The defensible claim is "predicts negotiated mergers well and tender offers
-  weakly", not "predicts M&A".
-- Only two clean test years survive the label fix.
-- Rumour dates are unmeasured, so lead time is measured against the proxy
-  filing rather than the first public report.
+- Rumour dates are unmeasured. Measured on the pair table, the merger proxy
+  lands a median **84 days after** the deal is already public, so the label is
+  systematically late relative to the tradeable event.
 - No returns, because no free source retains price history for delisted
-  companies — which is precisely where the positive observations are.
+  companies — which is precisely where the positive observations are. Merger
+  proxies were scoped as a substitute and do not carry usable price history:
+  quarterly high/low tables parse in only 3.3% of recent filings, since the
+  SEC's 2018 disclosure simplification dropped the requirement.
+- Recall is low. The screen flags only about 6.5% of deals in the year before
+  announcement; when it does fire, the median lead is 70 days.
+- Macro regime variables (credit spread, VIX, yield curve, president's party)
+  do not help. They are constant within a week, and the screen ranks within
+  weeks, so their main effect on precision is zero by construction; the best
+  between-year correlation is r = +0.35 on eleven observations.
 
 ## Further reading
 
-`PAPER.md` carries the full argument: three negative results (sentiment
-analysis, industry-relative ratios, and the classic literature variables all
-fail to help), a second model for predicting *acquirers* rather than targets,
-and seven errors caught during development, each of which would have produced a
-confident wrong answer.
+`PAPER.md` carries the full argument, including three negative results
+(sentiment analysis, industry-relative ratios, and the classic literature
+variables all fail to help) and the four errors caught during development, each
+of which would have produced a confident wrong answer.
 
 ## Licence
 

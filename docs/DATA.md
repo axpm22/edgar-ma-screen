@@ -1,7 +1,7 @@
 # Data Inventory
 
 Everything here is free and public. No CRSP, Compustat, SDC, or any licensed
-source. Total on disk: ~9.5 GB, of which 8.5 GB is the raw download cache.
+source. Total on disk: ~13 GB, of which 12 GB is the raw download cache.
 
 ---
 
@@ -11,14 +11,14 @@ source. Total on disk: ~9.5 GB, of which 8.5 GB is the raw download cache.
 
 | Table | Rows | What it is |
 |---|---|---|
-| `panel` | 4,123,449 | company × ISO week. One row per listed company per week |
-| `universe` | 15,325 | point-in-time listing spans (`listed`, `delisted`) |
-| `deals` | 2,456 | DEFM14A merger proxies, episode-collapsed |
-| `fundamentals` | 2,041,665 | XBRL facts (superseded by `fund2.duckdb`) |
-| `insider_trans` | 2,949,427 | Form 4 transactions, with 10b5-1 flag post-2023 |
-| `insider_value` | 278,878 | dollar-weighted insider activity |
-| `company_sic` | 12,839 | CIK → SIC industry code |
-| `fts_events` | 16,813 | EDGAR full-text hits on strategic-alternatives phrases |
+| `panel` | 5,967,094 | company × ISO week. One row per listed company per week |
+| `universe` | 19,021 | point-in-time listing spans (`listed`, `delisted`) |
+| `deals` | 3,188 | DEFM14A merger proxies, episode-collapsed |
+| `fundamentals` | 2,041,665 (stale) | XBRL facts (superseded by `fund2.duckdb`) |
+| `insider_trans` | 4,115,188 | Form 4 transactions, with 10b5-1 flag post-2023 |
+| `insider_value` | 415,233 | dollar-weighted insider activity |
+| `company_sic` | 15,822 | CIK → SIC industry code |
+| `fts_events` | 26,328 | EDGAR full-text hits on strategic-alternatives phrases |
 | `xwalk_name` | 15,181 | normalised company name → CIK |
 | `xwalk_domain` | 3,588 | CIK → website (from Wikidata) |
 
@@ -33,13 +33,14 @@ stay in for the weeks they existed, which is where the positive labels live.
 
 | Database | Rows | Contents |
 |---|---|---|
-| **`fund2.duckdb`** (212 MB) | 3,643,395 | XBRL facts, **25 tags** — balance sheet, income statement, cash flow, PP&E, preferred stock. Supersedes `deal.fundamentals` |
-| **`forms2.duckdb`** (87 MB) | 1,399,656 | Form events, **8 families**: `sc13d`, `sc13g`, `form8k`, `def14a`, `s4`, `late`, `shelf`, `raise`. Supersedes `forms.duckdb` |
-| **`items.duckdb`** (30 MB) | 729,740 | 8-K item codes (1.01 material agreement, 5.02 officer change, 4.01 auditor change, …). Item 3.01 excluded — delisting notice, leaks the outcome |
-| **`activist.duckdb`** (3 MB) | 43,709 | 13D filer identity; repeat filers across many targets are professional activists |
-| **`float.duckdb`** (4 MB) | 58,627 | `EntityPublicFloat` from XBRL frames. **Survivorship-free market cap** — comes from the company's own 10-K cover, so acquired companies retain history |
-| **`ct.duckdb`** (7 MB) | 120,144 | Certificate Transparency — novel hostnames per week. Only 2,448 of 15,325 companies resolve to a domain |
-| **`tender.duckdb`** (1 MB) | 616 | Tender-offer targets, resolved from SEC-HEADER `SUBJECT COMPANY`. Held out as an independent validation label |
+| **`fund2.duckdb`** (354 MB) | 5,249,647 | XBRL facts, **25 tags** — balance sheet, income statement, cash flow, PP&E, preferred stock. Supersedes `deal.fundamentals` |
+| **`forms2.duckdb`** (106 MB) | 2,025,920 | Form events, **8 families**: `sc13d`, `sc13g`, `form8k`, `def14a`, `s4`, `late`, `shelf`, `raise`. Supersedes `forms.duckdb` |
+| **`items.duckdb`** (30 MB) | 1,024,675 | 8-K item codes (1.01 material agreement, 5.02 officer change, 4.01 auditor change, …). Item 3.01 excluded — delisting notice, leaks the outcome |
+| **`activist.duckdb`** (6 MB) | 65,569 | 13D filer identity; repeat filers across many targets are professional activists |
+| **`float.duckdb`** (10 MB) | 96,821 | `EntityPublicFloat` from XBRL frames. **Survivorship-free market cap** — comes from the company's own 10-K cover, so acquired companies retain history |
+| **`ct.duckdb`** (7 MB) | 120,144 | Certificate Transparency — novel hostnames per week. Only 2,448 of 19,021 companies resolve to a domain |
+| **`tender.duckdb`** (1 MB) | 616 | Tender-offer targets, resolved from SEC-HEADER `SUBJECT COMPANY`. Intended as an independent validation label; **measured uninformative** — the screen catches only 1–5 of ~75 tender targets a year, so the test cannot confirm or refute generalisation |
+| **`pairs.duckdb`** (1 MB) | 1,371 | **(acquirer, target) deal pairs**, free. EDGAR indexes a deal filing once per party and both index rows carry the same accession, so a two-CIK accession in `master.idx` is a two-party filing. Zero downloads. Orientation — a target stops filing, an acquirer does not — agrees with `tender.duckdb`'s independently parsed subjects on **157/158 = 99.4%** of pairs where both parties are SEC filers |
 
 ---
 
@@ -47,8 +48,8 @@ stay in for the weeks they existed, which is where the positive labels live.
 
 | File | Shape | Notes |
 |---|---|---|
-| `features.parquet` | 4,123,449 × 86 | Target model. 72 active features; industry-relative columns present but excluded (measured −1.6pp) |
-| `buyer_features.parquet` | 4,123,449 × 93 | Buyer model. Adds shelf/raise rolls and capacity measures |
+| `features.parquet` | 5,967,094 × 75 | Target model. 72 active features; industry-relative columns present but excluded (measured −1.6pp) |
+| `buyer_features.parquet` | 5,967,094 × 82 | Buyer model. Adds shelf/raise rolls and capacity measures |
 | `lm_scores.parquet` | 3,101 × 13 | Loughran-McDonald sentiment on 8-K documents (null result) |
 
 ### Feature families
@@ -72,13 +73,13 @@ stay in for the weeks they existed, which is where the positive labels live.
 Three distinct label sets, and the distinction matters more than anything else
 in this project.
 
-**1. Raw proxy filers (2,456).** Every DEFM14A. **Contaminated** — a merger
+**1. Raw proxy filers (3,188).** Every DEFM14A. **Contaminated** — a merger
 proxy is filed by whoever's shareholders vote, so buyers in stock deals file
 one too. Teledyne after acquiring FLIR, Newmont after Newcrest, Dow after
 DowDuPont are all in here as if they were targets.
 
-**2. Verified targets (1,664).** Proxy filers whose periodic filings *stopped*
-within 270 days. A target disappears; an acquirer does not. 581 survivors
+**2. Verified targets (2,227).** Proxy filers whose periodic filings *stopped*
+within 270 days. A target disappears; an acquirer does not. 749 survivors
 removed, 200 too recent to classify. **This is the correct target label.**
 
 **3. Buyers (S-4 filers).** An S-4 registers securities issued to pay for an
@@ -86,7 +87,7 @@ acquisition, so the filer is the buyer. 3.00% weekly label rate.
 
 ---
 
-## Raw cache (8.5 GB, gitignored)
+## Raw cache (12 GB, gitignored)
 
 | Path | Size | Contents |
 |---|---|---|

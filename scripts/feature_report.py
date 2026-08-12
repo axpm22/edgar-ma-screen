@@ -40,7 +40,11 @@ from deal.feat_literature import LIT_COLS  # noqa: E402
 
 OUT = Path("data/feature_report.json")
 SAMPLE = 0.25
-ABLATE_YEARS = (2023, 2024, 2025)
+# Family stages run on EVERY test year, paired. Three years produced a
+# literature-only result that eleven years reversed by 5.25pp.
+# One seed, because pairing across 11 years already averages seed noise
+# and two seeds would double a 570-fit stage for little gain.
+FAMILY_SEEDS = (11,)
 
 
 def record(**kw) -> None:
@@ -128,12 +132,12 @@ def split(df, year):
             df.filter((pl.col("week") >= te0) & (pl.col("week") <= te1)))
 
 
-def evaluate(tr, va, te, cols):
+def evaluate(tr, va, te, cols, seeds=SEEDS):
     """Mean over seeds. One booster alive at a time."""
     if tr.height < 40_000 or not te.height or not te["y"].sum():
         return None
     p, l, h = [], [], []
-    for s in SEEDS:
+    for s in seeds:
         prm = {**PARAMS, "bagging_seed": s, "feature_fraction_seed": s,
                "data_random_seed": s}
         dtr = lgb.Dataset(tr.select(cols).to_pandas().astype("float32"),
@@ -201,12 +205,15 @@ def _family_stage(kind):
         gc.collect()
         fams = families(df)
         ctx = [c for c in features.CONTEXT_COLS if c in df.columns]
-        print(f"\n=== {model.upper()} {kind} (SPACs excluded) ===", flush=True)
+        years = _panel_years(df)
+        print(f"\n=== {model.upper()} {kind} (SPACs excluded, "
+              f"{len(years)} years, {len(FAMILY_SEEDS)} seed) ===", flush=True)
 
-        base = _mean_over_years(df, cols)
-        record(stage=kind, model=model, family="ALL", prec=base,
-               n_feat=len(cols))
-        print(f"  {'ALL FEATURES':<22} {base:>6.2f}%   n={len(cols)}",
+        base = _per_year(df, cols, years, FAMILY_SEEDS)
+        bm = float(np.mean(list(base.values())))
+        record(stage=kind, model=model, family="ALL", prec=bm,
+               n_feat=len(cols), per_year=base)
+        print(f"  {'ALL FEATURES':<22} {bm:>6.2f}%   n={len(cols)}",
               flush=True)
 
         for name, block in fams.items():
@@ -220,35 +227,59 @@ def _family_stage(kind):
                 use = [c for c in cols if c in set(block) | set(ctx)]
             if not use or len(use) == len(cols):
                 continue
-            m = _mean_over_years(df, use)
-            if m is None:
+            got = _per_year(df, use, years, FAMILY_SEEDS)
+            if not got:
                 continue
+            m = float(np.mean(list(got.values())))
+            st = _paired(base, got)          # positive = family helps
             record(stage=kind, model=model, family=name, prec=m,
-                   n_feat=len(use), delta=base - m if kind == "ablation"
-                   else m - base)
-            if kind == "ablation":
-                d = base - m
-                verdict = ("HELPS" if d > 2 else
-                           "HURTS" if d < -2 else "noise")
-                print(f"  without {name:<14} {m:>6.2f}%  "
-                      f"contributes {d:+5.2f}pp  {verdict}", flush=True)
-            else:
-                print(f"  only {name:<17} {m:>6.2f}%  "
-                      f"({m - base:+5.2f}pp vs all)  n={len(use)}", flush=True)
+                   n_feat=len(use), **st)
+            flag = "SIGNIFICANT" if st.get("significant") else "not sig"
+            print(f"  {'without' if kind == 'ablation' else 'only':<7} "
+                  f"{name:<18} {m:>6.2f}%  "
+                  f"{'contributes' if kind == 'ablation' else 'vs all'} "
+                  f"{st['delta'] if kind == 'ablation' else -st['delta']:+6.2f}pp"
+                  f" +/-{st['se']:.2f}  {st['years_positive']}/{st['n_years']}"
+                  f"  {flag}", flush=True)
         del df
         gc.collect()
 
 
-def _mean_over_years(df, cols):
-    vals = []
-    for yr in ABLATE_YEARS:
+def _per_year(df, cols, years, seeds):
+    """Precision for each test year. Returns {year: precision}."""
+    out = {}
+    for yr in years:
         tr, va, te = split(df, yr)
-        r = evaluate(tr, va, te, cols)
+        r = evaluate(tr, va, te, cols, seeds=seeds)
         del tr, va, te
         gc.collect()
         if r:
-            vals.append(r["prec"])
-    return float(np.mean(vals)) if vals else None
+            out[yr] = r["prec"]
+    return out
+
+
+def _paired(base: dict, other: dict) -> dict:
+    """Paired year-by-year comparison.
+
+    The families were first compared on three years, and that was not enough:
+    literature-only looked equal to the full 72-feature model on 2023-2025
+    (9.83% vs 9.31%) and came in 5.25pp WORSE across eleven. Two noisy tails
+    pointing opposite ways produced a clean-looking result from nothing.
+
+    Pairing by year cancels the regime effect, which is the largest source of
+    variance here, so the SD of the DIFFERENCE is far smaller than the SD of
+    either level. That is what makes eleven years decisive where three were not.
+    """
+    yrs = sorted(set(base) & set(other))
+    d = np.array([base[y] - other[y] for y in yrs])
+    if not len(d):
+        return {}
+    se = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else float("inf")
+    return {"delta": float(d.mean()), "delta_sd": float(d.std(ddof=1)),
+            "se": se, "n_years": len(d),
+            "years_positive": int((d > 0).sum()),
+            # Significant when the mean difference clears two standard errors.
+            "significant": bool(abs(d.mean()) > 2 * se) if se else False}
 
 
 def report():
@@ -286,9 +317,76 @@ def report():
                       + (f"  {d:+6.2f}pp" if d is not None else ""))
 
 
+def stage_macro():
+    """Do macro regime variables help? Two different questions.
+
+    1. WITHIN-WEEK RANKING. Expected to be ~0 and that is not a weak result:
+       every macro column is identical for all companies in a week, and the
+       screen ranks within weeks, so the main effect cannot move precision by
+       construction. Only interactions can.
+
+    2. BETWEEN-YEAR. The model scores 19.2% in 2021 and 6.7% in 2022 and no
+       company-level feature explains that. Here we correlate each year's
+       precision against that year's mean credit spread, VIX and yield curve.
+       A regime variable that says WHEN the screen works beats one that
+       marginally reorders a week.
+    """
+    from deal import feat_macro
+
+    spac = set(spac_ciks())
+    df, cols = target_frame()
+    df = df.filter(~pl.col("cik").is_in(list(spac)))
+    df = feat_macro.add(df)
+    years = _panel_years(df)
+    macro = [c for c in feat_macro.MACRO_COLS
+             if c in df.columns and df[c].std() and df[c].std() > 0]
+    print(f"=== MACRO: within-week ranking ({len(macro)} cols) ===", flush=True)
+
+    per_year = {}
+    for tag, use in (("without macro", cols), ("with macro", cols + macro)):
+        vals = []
+        for yr in years:
+            tr, va, te = split(df, yr)
+            r = evaluate(tr, va, te, use)
+            del tr, va, te
+            gc.collect()
+            if r:
+                vals.append(r["prec"])
+                per_year.setdefault(tag, {})[yr] = r["prec"]
+        m = float(np.mean(vals)) if vals else 0.0
+        record(stage="macro", variant=tag, mean=m, n_feat=len(use),
+               per_year=per_year.get(tag, {}))
+        print(f"  {tag:<16} {m:>6.2f}%   n={len(use)}", flush=True)
+
+    base = per_year.get("without macro", {})
+    print("\n=== MACRO: does it explain WHEN the screen works? ===", flush=True)
+    yr_macro = (feat_macro.add(
+        pl.DataFrame({"week": sorted(df["week"].unique().to_list())}))
+        .with_columns(pl.col("week").dt.year().alias("yr"))
+        .group_by("yr").mean())
+    rows = [(y, p, yr_macro.filter(pl.col("yr") == y)) for y, p in
+            sorted(base.items())]
+    rows = [(y, p, g) for y, p, g in rows if g.height]
+    prec = np.array([p for _, p, _ in rows])
+    print(f"  {'year':<6}{'prec':>8}{'credit':>9}{'vix':>8}{'curve':>8}")
+    for y, p, g in rows:
+        print(f"  {y:<6}{p:>7.2f}%{g['mac_credit_spread'][0]:>9.2f}"
+              f"{g['mac_vix'][0]:>8.1f}{g['mac_yield_curve'][0]:>8.2f}")
+    for name in ("mac_credit_spread", "mac_vix", "mac_yield_curve",
+                 "mac_unrate", "mac_pres_rep"):
+        x = np.array([g[name][0] for _, _, g in rows], dtype=float)
+        if x.std() == 0 or len(x) < 4:
+            continue
+        r = float(np.corrcoef(x, prec)[0, 1])
+        record(stage="macro_year", variable=name, corr=r, n_years=len(x))
+        print(f"  corr(year precision, {name:<20}) = {r:+.3f}  n={len(x)}",
+              flush=True)
+
+
 STAGES = {"accuracy": stage_accuracy,
           "ablation": lambda: _family_stage("ablation"),
           "solo": lambda: _family_stage("solo"),
+          "macro": stage_macro,
           "report": report}
 
 if __name__ == "__main__":
