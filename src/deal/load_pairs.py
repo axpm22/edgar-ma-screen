@@ -125,7 +125,8 @@ def collapse(pairs: list[dict], episode_days: int = EPISODE_DAYS) -> list[dict]:
                                       r["first_ts"]))
 
 
-def index_rows(start_year: int = 2016, end_year: int = 2026) -> list[dict]:
+def index_rows(start_year: int = config.PANEL_START_YEAR,
+               end_year: int = config.PANEL_END_YEAR) -> list[dict]:
     """Every cached quarterly index row. Cache-only: no network requests."""
     rows = []
     for y, q in universe.quarters(start_year, end_year):
@@ -137,7 +138,8 @@ def index_rows(start_year: int = 2016, end_year: int = 2026) -> list[dict]:
 
 
 def build(con, delisted: dict[str, dt.date | None],
-          start_year: int = 2016, end_year: int = 2026) -> dict:
+          start_year: int = config.PANEL_START_YEAR,
+          end_year: int = config.PANEL_END_YEAR) -> dict:
     """Create and fill deal_pairs. Returns counts for the caller to print."""
     con.execute(SCHEMA)
     con.execute("DELETE FROM deal_pairs")

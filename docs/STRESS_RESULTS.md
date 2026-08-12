@@ -1,28 +1,35 @@
 # Stress test and buyer–target alignment
 
-Run 2026-08-01. Every number below is reproducible from the scripts named
-beside it; results live in `data/*.json`, which is gitignored, so the numbers
-are written out here rather than referenced.
+Rerun 2026-08-04 on the 2012–2026 panel. Every number below is reproducible
+from the scripts named beside it; results live in `data/*.json`, which is
+gitignored, so the numbers are written out here rather than referenced.
 
-The headline: **the two models do not line up, but the pairing is still
-predictable — from structure rather than from either model's timing signal.**
-Two of the four stress tests pass cleanly, one refutes its own hypothesis, and
-one turns out to be uninformative in both directions.
+**This document was first written on the 2016 panel with only 2023–2025
+scored, which left the pairing work with 137 usable pairs. Two hardcoded start
+years were the cause** — `load_pairs.build` defaulted to 2016 and
+`pair_scores.YEARS` to three years. Fixing both gives 1,952 deal episodes
+instead of 1,371 and 789 usable pairs instead of 137. Every figure below is
+from the rerun, and the conclusions that changed are called out where they
+occur.
 
-## The three questions, side by side
+The headline: **the two screens are close to independent, and the pairing is
+predictable mostly from structure rather than from either model's timing
+signal.** Two of the four stress tests pass cleanly, one refutes its own
+hypothesis, and one turns out to be uninformative in both directions.
+
+## The four questions, side by side
 
 | Question | How often right | Lift vs chance |
 |---|---|---|
-| Will this company be acquired? (target, 25/week) | **11.7%** | 7.0× |
-| Will this company acquire someone? (buyer, 25/week) | **23.9%** | 13.2× |
-| Told the target — who is the buyer? (top 100 of ~7,138) | **34.3%** | 24.5× |
-| Nothing given — name both ends of one deal | **2.2%** | — |
+| Will this company be acquired? (target, 25/week) | **12.28%** | 6.91× |
+| Will this company acquire someone? (buyer, 25/week) | **31.72%** | 12.21× |
+| Told the target — who is the buyer? (top 100 of ~7,453) | **33.7%** | 25.1× |
+| Nothing given — name both ends of one deal | **0.89%** | — |
 
-Buying is roughly twice as predictable as being bought. Pairing, *conditional*
-on already knowing the target, is the strongest of the three in lift terms and
-the weakest in absolute terms — it produces a shortlist, not a name. Run
-end-to-end with nothing given, the chain succeeds on 3 of 137 deals. Details in
-§2 and §2.1.
+Buying is roughly two and a half times more predictable than being bought.
+Pairing, *conditional* on already knowing the target, is the strongest in lift
+terms and the weakest in absolute terms — it produces a shortlist, not a name.
+Run end to end with nothing given, the chain succeeds on **7 of 789 deals**.
 
 ---
 
@@ -67,43 +74,43 @@ matters: a target must be a filer to be in the panel at all.
 
 ---
 
-## 1. Do the two models line up? No.
+## 1. Do the two models line up? Barely, and not significantly.
 
 `scripts/alignment.py`. No model fits — reads cached scores from
 `scripts/pair_scores.py`.
 
-First, a precondition: **corr(p_target, p_buyer) = 0.245** across 966,670
-company-weeks. The two models are genuinely distinct scores. Had this been
-above 0.9, everything in this section and the next would have been measuring
-one score against itself.
+First, a precondition: **corr(p_target, p_buyer) = 0.272** across the scored
+panel. The two models are genuinely distinct scores. Had this been above 0.9,
+everything in this section and the next would have been measuring one score
+against itself.
 
-| | |
-|---|---|
-| Observed corr(target score, buyer score) on 137 real pairs, 4-week lead | **+0.133** |
-| Within-week permutation null | **+0.131** (sd 0.070) |
-| p | **0.43** |
+| | 789 pairs (current) | 137 pairs (first run) |
+|---|---|---|
+| Observed corr, 4-week lead | **+0.143** | +0.133 |
+| Within-week permutation null | **+0.108** (sd 0.026) | +0.131 (sd 0.070) |
+| p | **0.086** | 0.43 |
 
-The entire correlation is week composition. Real deals cluster in weeks when
-both screens run hot — common market and time factors. Hold the week fixed,
-reshuffle which acquirer is paired with which target, and the same correlation
-reappears. **There is no pair-specific information in the two scores jointly:
-knowing this target is hot tells you nothing about which buyer's score is hot.**
+**This is the one conclusion the rerun moved, and it moved against the earlier
+claim.** On 137 pairs the observed correlation sat exactly on the null mean and
+the honest reading was a clean null — no pair-specific information whatever. On
+789 pairs it sits above the null at p = 0.086. That is not significant at any
+conventional threshold, but it is no longer nothing, and the earlier "p = 0.43,
+zero pair-specific information" was an underpowered test reported with more
+confidence than it had earned.
 
-**The naive test would have said the opposite.** Raw Spearman gives
-rho = +0.240, p = 0.005 — a publishable-looking result. Under the within-week
-permutation it goes to p = 0.134. This is the too-small-naive-error failure
-mode landing on a metric that had never been subjected to it.
+The defensible statement now: **the two screens are close to independent, with
+a weak positive association that eleven years of data still cannot separate
+from chance.** Most of the raw correlation is week composition — real deals
+cluster in weeks when both screens run hot — but not quite all of it.
 
 ### The joint top-25 test is structurally dead — do not read it
 
-`agreement_ratio = 0.00×` appears in `data/alignment.json` at every lead. It
-means nothing. With ~7,100 companies scored per week, 25 picks each, and 130
-pairs, independence predicts **0.1 joint hits**; observing zero is the modal
-outcome under the null. The design can only reject agreement ratios above
-~4×–23×, and needs roughly 5,500 pairs to be informative against 130. Written
-up unguarded it reads as "the screens actively anti-align", which is a
-confident wrong answer. The JSON now carries an `underpowered` flag and an
-expected-events count so it cannot be misread later.
+Joint hit rates now come out at ratios of 2.9× to 4.2× above independence —
+but independence still predicts only **0.24 to 0.58 joint events** across the
+whole sample, so those ratios rest on one or two coincidences. `alignment.json`
+carries an `underpowered` flag and an expected-events count on every row. With
+~7,450 companies scored per week, 25 picks each, this test needs thousands of
+pairs to resolve and has 789. Do not read the ratio.
 
 The continuous correlation test is the one that carries the answer.
 
@@ -117,8 +124,8 @@ Random baseline = 1/101 = **0.99%**.
 
 | Embargo | Test pairs | top-1 [95% CI] | top-10 [95% CI] | Median rank |
 |---|---|---|---|---|
-| 4w | 84 | 28.6% [19.0–38.1] | 73.8% [64.3–83.3] | 3 |
-| 13w | 89 | 33.7% [24.7–42.7] | 71.9% [62.9–82.0] | 2 |
+| 4w | 139 | 33.1% [25.2–41.0] | 82.0% [75.5–87.8] | 2 |
+| 13w | 149 | 39.6% [31.5–47.7] | 81.2% [75.2–87.2] | 2 |
 
 Nothing collapses under embargo, so the model is not reading the announcement.
 The CIs overlap almost entirely — the 13-week set is **not** better than the
@@ -153,38 +160,38 @@ acquirer from its sector* (it does).
 > **Who buys whom is an industry-and-size question. When it happens is a
 > filing-behaviour question. The two are close to orthogonal.**
 
-Caveats not to drop: the trained model rests on **53 training pairs** — the
-2023 fold has none, because `p_buyer` only exists in scored test years, a
-limitation of how `pair_scores.py` was built. The hard-negative rows above are
-untrained heuristics, which is why they are more trustworthy here than the
-53-pair fit.
+The **53 training pairs** caveat in the first version of this document is
+resolved: `pair_scores.py` now scores all eleven years, so the two rolling
+folds train on 642 and 697 pairs. Both folds run, and the numbers above are
+pooled across them.
 
 ### The 101-candidate framing flatters this by ~70×
 
 Everything above ranks the true acquirer against **100 sampled distractors**.
 That is the standard evaluation for a matching model, and it answers "can you
 beat 100 arbitrary companies" — not "can you name the buyer". Against the
-~7,138 companies actually scored in a given week:
+~7,453 companies actually scored in a given week:
 
-| | 101 random candidates | Real universe (7,138) |
+| | 101 random candidates | Real universe (~7,453) |
 |---|---|---|
-| top-1 | 28.6% | **0.0%** |
-| top-10 | 73.8% | 1.5% |
-| top-100 | — | 34.3% |
-| Median rank | 3 | **202** |
+| top-1 | 33.1% | **0.4%** |
+| top-10 | 82.0% | 3.4% |
+| top-100 | — | 33.7% |
+| Median rank | 2 | **165** |
 
-Still real signal — median rank 202 against a chance median of 3,569 is ~18×
-better than random, and 34.3% in the top 100 against a 1.4% chance rate is
-24.5× lift. **The model narrows ~7,000 candidate acquirers to a shortlist of
+Still real signal — median rank 165 against a chance median of ~3,727 is ~23×
+better than random, and 33.7% in the top 100 against a 1.34% chance rate is
+25.1× lift. **The model narrows ~7,400 candidate acquirers to a shortlist of
 100 that contains the right one a third of the time. It cannot name the buyer.**
 
 ### End to end, with nothing given, the pipeline collapses
 
 Chain both stages — target in the top 25 that week, *then* acquirer in the top
-100 — and it succeeds on **3 of 137 deals (2.2%)** at a 4-week embargo, 2 of
-136 at 13 weeks. The bottleneck is the target side: the median real target sits
-at **rank 1,216** in its own week, and only 2.9% are in the top 25 four weeks
-before announcement.
+100 — and it succeeds on **7 of 789 deals (0.89%)** at a 4-week embargo. Six
+times the sample moved this figure *down*, from 2.2% to 0.89%: the earlier
+number rested on three coincidences. The bottleneck is the target side, where
+the median real target sits at **rank 1,232** in its own week and only 2.2% are
+in the top 25 four weeks before announcement.
 
 That is the number to quote if anyone asks whether this predicts deals rather
 than screens for them.
@@ -284,11 +291,11 @@ three of four details have a majority class big enough to flatter accuracy.
 
 | Detail | Accuracy | Baseline | AUC | n_test | Verdict |
 |---|---|---|---|---|---|
-| Stock vs cash consideration | 84.1% | 79.5% | **0.852** | 88 | **Predictable** |
-| Acquirer is bigger | 88.1% | 85.2% | 0.756 | 88 | Proxy artifact — see below |
-| …with `log_float` also dropped | 83.5% | 85.2% | 0.663 | 88 | **No signal** |
+| Stock vs cash consideration | 84.7% | 79.5% | **0.823** | 88 | **Predictable** |
+| Acquirer is bigger | 89.2% | 85.2% | 0.761 | 88 | Proxy artifact — see below |
+| …with `log_float` also dropped | 80.1% | 85.2% | 0.694 | 88 | **No signal** |
 | Deal completes (on `deal_pairs`) | — | — | — | 0 | **Tautology — unaskable** |
-| Deal completes (on tender offers) | 85.8% | 50.9% | **0.942** | 53 | Real, thin |
+| Deal completes (on tender offers) | 83.0% | 50.9% | **0.913** | 53 | Real, thin |
 
 **Stock vs cash is the cleanest result here.** Whether consideration is stock
 (425) or a cash tender (SC TO-T) is predictable at AUC 0.852 from both parties'
@@ -317,9 +324,10 @@ near the panel edge. Measured completion rate is 1.00 from 2025Q2 against ~0.65
 historically, and announcement date alone scored AUC 0.780. A 270 + 180 day
 slack fixes it (date-only AUC falls to 0.678); this is now `CENSOR_SLACK_DAYS`.
 
-**Lead time.** Of 246 scorable pairs, **16 were ever in the top 25** during the
-52 weeks before announcement — 6.5%. When the screen does see a deal coming,
-median lead is **9.3 weeks** (p25 0.9, p75 13.8, max 49.1).
+**Lead time.** Of 1,219 scorable pairs, **78 were ever in the top 25** during
+the 52 weeks before announcement — **6.4%**, almost exactly the earlier
+estimate on five times the sample. When the screen does see a deal coming,
+median lead is **6.5 weeks** (p25 0.6, p75 16.0, max 51.4).
 
 ---
 
@@ -379,12 +387,18 @@ cannot rule out.
 
 Reported as plainly as what did:
 
-- **Score alignment between the two models.** Null, p = 0.43. The screens carry
-  no joint information about a specific transaction.
+- **Score alignment between the two models.** Weak and not significant:
+  p = 0.086 on 789 pairs. Reported as a clean null (p = 0.43) on the first run
+  of 137 pairs — that was underpowered, and the rerun moved it against the
+  claim rather than for it.
 - **The joint top-25 alignment test.** Structurally underpowered by ~40×;
   produces a number that cannot be interpreted.
 - **Tender-offer external validation.** Rests on 1–5 companies per year.
   Uninformative in both directions.
+- **Naming the buyer.** Top-1 against the real weekly universe is 0.4%. The
+  model produces a shortlist, not a name.
+- **Both ends of a deal from nothing.** 7 of 789, and the figure fell when the
+  sample grew.
 - **"Acquirer is bigger" as a prediction.** Below majority baseline once the
   size proxies are removed.
 - **Deal completion on the pair table.** Tautological by construction.
@@ -393,11 +407,11 @@ Reported as plainly as what did:
 
 ## 6. Known limits of this run
 
-- 1,023 usable pairs, of which only ~130–137 have both parties scored in the
-  same week. Everything in §1 and §2 rests on that.
-- `pair_scores.parquet` covers 2023–2025 only, which caps the matching study at
-  a single training fold of 53 pairs. Scoring `p_buyer` across the full
-  2016–2025 panel is the single change that would most improve §2.
+- 1,952 deal episodes, of which **789** have both parties scored in the same
+  week. Everything in §1 and §2 rests on that — six times the first run, and
+  it moved two conclusions.
+- The scored panel now spans 2015–2025, so the matching study runs two rolling
+  folds training on 642 and 697 pairs rather than one fold of 53.
 - Matching distractors are random or same-SIC, not a curated set of credible
   bidders. The hard-negative variant is the closer approximation.
 - 41% of two-party accessions are dropped as ambiguous. Those are not missing

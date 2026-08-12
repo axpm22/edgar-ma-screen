@@ -27,7 +27,10 @@ from select_cv import PARAMS, ROUNDS, SEEDS, split, spac_ciks  # noqa: E402
 
 from deal import feat_buyer, features  # noqa: E402
 
-YEARS = (2023, 2024, 2025)
+# Every test year the panel supports, not a hardcoded three. Scoring only
+# 2023-2025 was what capped the alignment analysis at 137 usable pairs and
+# left the matching model with a single training fold.
+YEARS = tuple(range(2015, 2026))
 OUT = "data/pair_scores.parquet"
 
 
