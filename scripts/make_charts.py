@@ -56,21 +56,87 @@ def _label(ax, bars, fmt="{:.1f}%", dy=0.4):
                 ha="center", va="bottom", fontsize=9, color=INK)
 
 
+def _size_deciles():
+    """Deal rate by public-float decile, verified targets, 52-week horizon.
+
+    Recomputed rather than read from a cached file: the previous version read
+    `y` straight from features.parquet, which stores a 26-WEEK label, and
+    captioned it "within 12 months". Deriving it here keeps the horizon
+    explicit and the figure honest.
+    """
+    import duckdb
+    import numpy as np
+    import polars as pl
+    from deal import clean_labels
+
+    df = pl.read_parquet("data/features.parquet",
+                         columns=["cik", "week", "log_float"])
+    con = duckdb.connect(":memory:")
+    con.execute("ATTACH 'data/deal.duckdb' AS m (READ_ONLY)")
+    con.execute("CREATE TEMP VIEW deals AS SELECT * FROM m.deals")
+    con.execute("CREATE TEMP VIEW universe AS SELECT * FROM m.universe")
+    clean_labels.build(con, df["week"].max())
+    con.register("f", df.select(["cik", "week"]).to_arrow())
+    lab = con.execute("""
+        SELECT f.cik, f.week, CASE WHEN EXISTS(
+          SELECT 1 FROM deals_clean d WHERE d.cik = f.cik
+            AND d.outcome = 'target'
+            AND f.week <  d.agreement_date
+            AND f.week >= d.agreement_date - INTERVAL 52 WEEK)
+          THEN 1 ELSE 0 END AS y FROM f""").pl()
+    d = df.with_columns(
+        df.select(["cik", "week"]).join(lab, on=["cik", "week"],
+                                        how="left")["y"].fill_null(0).alias("y")
+    ).filter(pl.col("log_float") > 0)
+    q = np.quantile(d["log_float"].to_numpy(), np.linspace(0, 1, 11))
+    out = []
+    for i in range(10):
+        lo, hi = q[i], q[i + 1]
+        sel = d.filter((pl.col("log_float") >= lo)
+                       & (pl.col("log_float") <= hi if i == 9
+                          else pl.col("log_float") < hi))
+        out.append(100.0 * float(sel["y"].mean()) if sel.height else 0.0)
+    return out
+
+
+def _acc():
+    """Rows from the eleven-year accuracy run, filtered by model and universe."""
+    rows = [r for r in json.loads((DATA / "feature_report.json").read_text())
+            if r.get("stage") == "accuracy"]
+    def get(model, universe):
+        return sorted([r for r in rows if r["model"] == model
+                       and r["universe"] == universe], key=lambda r: r["year"])
+    return get
+
+
 def _cv(stage, subset="A_all"):
     rows = json.loads((DATA / "select_cv.json").read_text())
     return [r for r in rows
             if r.get("stage") == stage and r.get("subset") == subset]
 
 
+def _stale_stamp(ax, note="measured on the 2016 panel / contaminated labels — "
+                          "read the ordering, not the levels"):
+    """Mark a figure whose underlying run was never re-derived.
+
+    These three come from analyses that predate the 2012 rebuild. Section 9 of
+    the paper says so in prose, but a figure travels without its caption, so
+    the warning belongs on the canvas.
+    """
+    ax.text(0.5, -0.30, note, transform=ax.transAxes, ha="center",
+            va="top", fontsize=7.5, color=ORANGE, style="italic")
+
+
 def fig_funnel():
-    """Source: measured counts from deal.duckdb, forms.duckdb and
-    logs/index.log. Not the README's 11.6M, which counts every master-index
-    row including forms the pipeline never reads. The label count is verified
-    targets, not proxy filers -- 581 of those turned out to be acquirers."""
+    """Source: measured counts from deal.duckdb, forms2.duckdb and
+    logs/index.log on the 2012-2026 panel. Not the README's old 11.6M, which
+    counted every master-index row including forms the pipeline never reads.
+    The label count is verified targets, not proxy filers -- 749 of those
+    turned out to be acquirers or terminated deals."""
     labels = ["Insider\ntransactions", "XBRL\nfacts", "Form\nevents",
               "Periodic filings\n(universe)", "Company-weeks\n(panel)",
               "Verified targets\n(labels)"]
-    vals = [2_949_427, 2_041_665, 1_167_814, 302_529, 4_123_449, 1_664]
+    vals = [4_115_188, 5_249_647, 2_025_920, 444_748, 5_967_094, 2_227]
     cols = [BLUE, BLUE, BLUE, BLUE, AQUA, ORANGE]
     fig, ax = plt.subplots(figsize=(7.6, 3.4))
     bars = ax.bar(labels, vals, color=cols, width=0.6)
@@ -86,12 +152,11 @@ def fig_funnel():
 
 
 def fig_hit_rate():
-    """Source: data/curve_clean.json -- VERIFIED-TARGET labels, operating
-    companies, 2023-24. 2025 is excluded: deals after ~Oct 2025 cannot yet be
-    classified target-vs-survivor, so genuine deals get labelled 0."""
-    curve = json.loads((DATA / "curve_clean.json").read_text())
-    ns = [f"Top {n}" for n in curve["ns"]]
-    hit, base = curve["precision"], curve["base"]
+    """Source: data/curve_final.json -- VERIFIED-TARGET labels, operating
+    companies, eleven test years 2015-2025."""
+    c = json.loads((DATA / "curve_final.json").read_text())["target"]
+    ns = [f"Top {x['n']}" for x in c["curve"]]
+    hit, base = [x["prec"] for x in c["curve"]], c["base"]
     fig, ax = plt.subplots(figsize=(7, 3.6))
     bars = ax.bar(ns, hit, color=BLUE, width=0.6)
     _label(ax, bars)
@@ -113,12 +178,12 @@ def fig_labels():
 
     The whole point of the chart: precision falls in both universes, but lift
     RISES for operating companies. Fewer, purer positives."""
-    old_all = sum(r["lift"] for r in _cv("sets") if r["year"] != 2025) / 2
-    old_op = sum(r["lift"] for r in _cv("nospac") if r["year"] != 2025) / 2
-    ca = json.loads((DATA / "clean_all.json").read_text())
-    cn = json.loads((DATA / "clean_nospac.json").read_text())
-    new_all = sum(r[3] for r in ca if r[0] != 2025) / 2
-    new_op = sum(r[3] for r in cn if r[0] != 2025) / 2
+    # Contaminated-label lifts are the historical 2023-24 measurement; the
+    # verified-target side is the eleven-year run.
+    old_all, old_op = 9.63, 5.94
+    acc = _acc()
+    new_all = sum(r["lift"] for r in acc("target", "all")) / len(acc("target", "all"))
+    new_op = sum(r["lift"] for r in acc("target", "nospac")) / len(acc("target", "nospac"))
 
     fig, ax = plt.subplots(figsize=(7, 3.7))
     x = [0, 1]
@@ -136,40 +201,37 @@ def fig_labels():
     ax.set_ylim(0, 11.5)
     ax.legend(frameon=False, fontsize=9, loc="upper right")
     _style(ax, "lift over base rate")
-    ax.set_title("Removing 581 acquirers made the finding stronger",
+    ax.set_title("Removing 749 acquirers made the finding stronger",
                  loc="left")
     fig.tight_layout(); fig.savefig(OUT / "labels.png"); plt.close(fig)
 
 
 def fig_acquirer():
-    """Source: clean_nospac.json vs acq_1.json / acq_2.json. All SPAC-free.
-    Acquirer label = files an S-4 within 12 months."""
-    cn = json.loads((DATA / "clean_nospac.json").read_text())
-    tgt = sum(r[3] for r in cn if r[0] != 2025) / 2
-    a1 = json.loads((DATA / "acq_1.json").read_text())
-    a2 = json.loads((DATA / "acq_2.json").read_text())
-    m1 = sum(r[2] for r in a1) / len(a1)
-    m2 = sum(r[2] for r in a2) / len(a2)
-    names = ["Will be\nacquired", "Will buy\n(any S-4)",
-             "Will buy\n(serial acquirer)"]
-    vals = [tgt, m1, m2]
+    """Source: feature_report.json, eleven test years, SPAC-free, buyer label
+    = files an S-4 within 12 months with self-referential features removed."""
+    acc = _acc()
+    tgt = sum(r["lift"] for r in acc("target", "nospac")) / len(acc("target", "nospac"))
+    buy = sum(r["lift"] for r in acc("buyer", "nospac")) / len(acc("buyer", "nospac"))
+    names = ["Will be\nacquired", "Will buy\n(files an S-4)"]
+    vals = [tgt, buy]
     fig, ax = plt.subplots(figsize=(6.8, 3.5))
-    bars = ax.bar(names, vals, color=[AQUA, BLUE, BLUE], width=0.5)
+    bars = ax.bar(names, vals, color=[AQUA, BLUE], width=0.45)
     for b, v in zip(bars, vals):
         ax.text(b.get_x() + b.get_width() / 2, v + 0.35, f"{v:.2f}x",
                 ha="center", fontsize=10, color=INK)
-    ax.set_ylim(0, 21)
+    ax.set_ylim(0, max(vals) * 1.3)
     _style(ax, "lift over base rate")
     ax.set_title("Buying is far more predictable than being bought")
     fig.tight_layout(); fig.savefig(OUT / "acquirer.png"); plt.close(fig)
 
 
 def fig_cv_years():
-    """Source: clean_all.json / clean_nospac.json -- verified-target labels.
-    2025 is shown but hatched: it is a censoring artifact, not a bad year."""
-    ca = {r[0]: r[1] for r in json.loads((DATA / "clean_all.json").read_text())}
-    cn = {r[0]: r[1]
-          for r in json.loads((DATA / "clean_nospac.json").read_text())}
+    """Source: feature_report.json -- verified-target labels, eleven test
+    years. 2025 is shown but hatched: it is right-censored to ~30 weeks and
+    its operating-company figure rests on five distinct companies."""
+    acc = _acc()
+    ca = {r["year"]: r["prec"] for r in acc("target", "all")}
+    cn = {r["year"]: r["prec"] for r in acc("target", "nospac")}
     yrs = sorted(cn)
     x = range(len(yrs))
     fig, ax = plt.subplots(figsize=(7, 3.7))
@@ -180,46 +242,51 @@ def fig_cv_years():
     for bars in (b1, b2):          # mark the unusable year
         bars[yrs.index(2025)].set_hatch("///")
         bars[yrs.index(2025)].set_alpha(0.45)
-    _label(ax, b1, dy=0.35); _label(ax, b2, dy=0.35)
-    ax.set_xticks(list(x)); ax.set_xticklabels([str(y) for y in yrs])
-    ax.set_ylim(0, 22)
+    # 22 bars is too dense for a value on each: label the operating-company
+    # series only, which is the defensible one, and stagger to avoid collision.
+    for i, b in enumerate(b2):
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.35,
+                f"{b.get_height():.1f}", ha="center", fontsize=8,
+                color=INK, rotation=0)
+    ax.set_xticks(list(x)); ax.set_xticklabels([str(y) for y in yrs],
+                                               fontsize=8.5)
+    ax.set_ylim(0, max(max(ca.values()), max(cn.values())) * 1.35)
     ax.legend(frameon=False, fontsize=9, loc="upper right")
     _style(ax, "precision at top-25/week")
     ax.set_xlabel("held-out test year", fontsize=9)
-    ax.text(2, 12.4, "outcomes not\nyet observable", ha="center",
-            fontsize=8.5, color=INK2, style="italic")
-    ax.set_title("2025 is unusable: its deals cannot be classified yet",
+    ax.set_title("Regime dominates: eleven test years, 2015-2025",
                  loc="left")
     fig.tight_layout(); fig.savefig(OUT / "cv_years.png"); plt.close(fig)
 
 
 def fig_universes():
-    """Source: clean_all.json / clean_nospac.json, 2023-24 mean lift."""
-    ca = json.loads((DATA / "clean_all.json").read_text())
-    cn = json.loads((DATA / "clean_nospac.json").read_text())
-    a = sum(r[3] for r in ca if r[0] != 2025) / 2
-    n = sum(r[3] for r in cn if r[0] != 2025) / 2
+    """Source: feature_report.json, eleven-year mean lift. The point of the
+    chart: on LIFT the SPAC decision is worth +0.04x, so it changes the
+    population and not the skill."""
+    acc = _acc()
+    a = sum(r["lift"] for r in acc("target", "all")) / len(acc("target", "all"))
+    n = sum(r["lift"] for r in acc("target", "nospac")) / len(acc("target", "nospac"))
     fig, ax = plt.subplots(figsize=(6.4, 3.3))
     bars = ax.bar(["Including\nde-SPACs", "Operating\ncompanies only"],
                   [a, n], color=[BLUE, AQUA], width=0.45)
     for b, v in zip(bars, [a, n]):
         ax.text(b.get_x() + b.get_width() / 2, v + 0.12, f"{v:.2f}x",
                 ha="center", fontsize=10, color=INK)
-    ax.set_ylim(0, 9)
+    ax.set_ylim(0, max(a, n) * 1.35)
     _style(ax, "lift over base rate")
-    ax.set_title("On clean labels the two universes nearly converge")
+    ax.set_title("On lift, excluding SPACs changes almost nothing")
     fig.tight_layout(); fig.savefig(OUT / "universes.png"); plt.close(fig)
 
 
 def fig_size_hump():
-    """Source: data/curve_clean.json -- deal rate by public-float decile on
-    VERIFIED-TARGET labels at the 52-week horizon.
+    """Source: recomputed from features.parquet + verified-target labels at
+    the 52-week horizon on the 2012-2026 panel.
 
     The previous version read `y` straight from features.parquet, which stores
     a 26-WEEK label (1.413% positive; the 52-week rate is 2.769%). It was
     captioned 'within 12 months' and was not. Every model script calls
     relabel(raw, 52) first, so only the figure was wrong."""
-    rate = json.loads((DATA / "curve_clean.json").read_text())["size_deciles"]
+    rate = _size_deciles()
     labels = ["smallest", "2", "3", "4", "5", "6", "7", "8", "9", "largest"]
     cols = [AQUA if 3 <= i <= 7 else BLUE for i in range(10)]
     fig, ax = plt.subplots(figsize=(7, 3.6))
@@ -233,21 +300,37 @@ def fig_size_hump():
 
 
 def fig_signals():
-    """Source: data/hazard_clean.json -- logit on 959,421 rows with
-    VERIFIED-TARGET labels, SEs clustered by company. Nineteen non-control
-    signals clear |z|>1.96; the ten largest are shown."""
-    rows = [
-        ("A known activist is on the register", 7.99),
-        ("A rival in the same industry was just bought", 6.79),
-        ('Company disclosed a "strategic review"', 5.92),
-        ("Unusual proxy activity", 5.59),
-        ("Insiders who normally trade have gone quiet", 5.12),
-        ('Mention of a "letter of intent"', 4.71),
-        ("Auditor was changed", -4.35),
-        ("Filed an S-4 (i.e. is itself a buyer)", -3.99),
-        ("A new activist just filed", 3.76),
-        ("Profitability (return on assets)", 3.18),
-    ][::-1]
+    """Source: data/stress_pairs.json -- logit on 1,512,368 rows with
+    VERIFIED-TARGET labels on the 2012-2026 panel, SEs clustered by company.
+    Twenty non-control signals clear |z|>1.96; the eleven largest are shown.
+
+    Labels are hand-written plain English rather than column names, so the
+    chart reads without the data dictionary."""
+    NAMES = {
+        "activist_recent": "A known activist is on the register",
+        "log_assets": "Company size (total assets)",
+        "log_float": "Company size (public float)",
+        "sa_review_52w": 'Company disclosed a "strategic review"',
+        "sc13d_52w_z": "13D activity vs the firm's own baseline",
+        "peer_deal_13w": "A rival in the same industry was just bought",
+        "roa": "Profitability (return on assets)",
+        "s4_52w": "Filed an S-4 (i.e. is itself a buyer)",
+        "sa_loi_52w": 'Mention of a "letter of intent"',
+        "sa_unsolicited_52w": 'Mention of an "unsolicited" approach',
+        "sector_deal_intensity": "Sector consolidating",
+        "disc_blackout": "Insiders who normally trade have gone quiet",
+        "i_auditor_change_52w": "Auditor was changed",
+        "cash_runway": "Cash runway",
+        "age_weeks": "Years since the company began filing",
+    }
+    haz = [r for r in json.loads((DATA / "stress_pairs.json").read_text())
+           if r.get("test") == "hazard" and "z" in r]
+    rows = []
+    for r in haz:
+        key = r["label"].strip()
+        if key in NAMES and abs(r["z"]) > 1.96:
+            rows.append((NAMES[key], float(r["z"])))
+    rows = sorted(rows, key=lambda x: -abs(x[1]))[:11][::-1]
     fig, ax = plt.subplots(figsize=(9.0, 4.4))
     cols = [ORANGE if v < 0 else BLUE for _, v in rows]
     bars = ax.barh([r[0] for r in rows], [r[1] for r in rows],
@@ -258,7 +341,8 @@ def fig_signals():
                 va="center", ha="left" if v >= 0 else "right",
                 fontsize=9, color=INK)
     ax.axvline(0, color=INK2, linewidth=1)
-    ax.set_xlim(-7.0, 10.0)
+    lo = min(v for _, v in rows); hi = max(v for _, v in rows)
+    ax.set_xlim(lo - 2.0, hi + 2.0)
     ax.xaxis.grid(True, color=GRID, linewidth=0.8)
     ax.set_axisbelow(True); ax.tick_params(length=0)
     ax.set_xlabel("z-statistic, standard errors clustered by company "
@@ -290,6 +374,7 @@ def fig_nested():
                   "(2 seeds; +/-2pp is noise)", fontsize=9)
     ax.set_title("Only one family of signals clearly earns its place",
                  loc="left")
+    _stale_stamp(ax)
     fig.tight_layout(); fig.savefig(OUT / "nested.png"); plt.close(fig)
 
 
@@ -317,6 +402,7 @@ def fig_embargo():
     ax.set_ylim(0, 25)
     _style(ax, "precision at top-25/week")
     ax.set_title("A quarter of the edge lives in the last two months")
+    _stale_stamp(ax)
     fig.tight_layout(); fig.savefig(OUT / "embargo.png"); plt.close(fig)
 
 
@@ -348,6 +434,7 @@ def fig_featureset():
     ax.set_xlabel("features in the model", fontsize=9)
     ax.set_title("Shells are easy to predict with 14 features; "
                  "real companies are not", loc="left")
+    _stale_stamp(ax)
     fig.tight_layout(); fig.savefig(OUT / "featureset.png"); plt.close(fig)
 
 
