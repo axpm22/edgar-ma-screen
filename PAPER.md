@@ -138,11 +138,13 @@ The framing is a discrete-time hazard model: one row per company-week, label =
 simply has no rows after it delists — rather than through a correction term.
 
 **Why trees, not logit.** The relationship between size and acquisition is
-hump-shaped. Deal rate by public-float decile runs 0.44% at the smallest, peaks
-at 3.98% in the fifth, and falls to 1.03% at the largest
-[`curve_clean.json`]. A linear coefficient on size has to choose a direction,
-and choosing "bigger" ranks mega-caps first — the decile least likely to be
-acquired.
+hump-shaped. Deal rate by public-float decile runs **0.29%** at the smallest,
+peaks at **3.81%** in the fifth, and falls to **1.40%** at the largest,
+recomputed on verified-target labels at the 52-week horizon over the full
+panel. A linear coefficient on size has to choose a direction, and choosing
+"bigger" ranks mega-caps first — close to the decile least likely to be
+acquired. The shape is unchanged from the 2016 panel; the levels moved and the
+peak is still the fifth decile.
 
 ![size hump](docs/figures/size_hump.png)
 
