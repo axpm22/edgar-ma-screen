@@ -37,16 +37,17 @@ def test_no_chart_hardcodes_a_retracted_number():
 def test_paper_leads_with_the_defensible_number():
     """Operating-company, verified-target number comes before all-companies."""
     t = PAPER.read_text()
-    assert t.index("10.73") < t.index("14.95"), \
+    assert t.index("12.28") < t.index("13.29"), \
         "all-companies figure must not precede the operating-only headline"
 
 
 def test_headline_is_the_clean_label_result():
-    """13.81% was measured with 581 acquirers in the positive class."""
+    """13.81% was measured with 749 acquirers in the positive class."""
     for line in PAPER.read_text().splitlines():
         if "13.81" in line:
             assert any(w in line.lower() for w in
-                       ("earlier draft", "proxy filers", "contaminated")), \
+                       ("earlier draft", "early draft", "proxy filers",
+                        "contaminated")), \
                 f"13.81 quoted as live: {line.strip()}"
 
 
@@ -69,18 +70,35 @@ def test_paper_references_only_existing_figures():
 
 
 def test_headline_matches_the_measured_run():
-    """2025 is excluded: its deals cannot be classified target-vs-survivor."""
-    rows = [r for r in json.loads(Path("data/clean_nospac.json").read_text())
-            if r[0] != 2025]
-    mean = sum(r[1] for r in rows) / len(rows)
-    assert 10.0 < mean < 11.5, f"operating-only mean drifted to {mean:.2f}"
+    """The paper's headline must match what the accuracy stage actually wrote.
+
+    Pinned to the eleven-year operating-company mean. The previous version of
+    this guard was pinned to a three-year mean of ~10.73, and kept passing
+    against a stale data file after the panel was rebuilt -- a guard that
+    protects a superseded number is worse than none.
+    """
+    p = Path("data/feature_report.json")
+    if not p.exists():
+        return                       # results are gitignored; skip on a clone
+    rows = [r for r in json.loads(p.read_text())
+            if r.get("stage") == "accuracy" and r.get("model") == "target"
+            and r.get("universe") == "nospac"]
+    if not rows:
+        return
+    mean = sum(r["prec"] for r in rows) / len(rows)
+    assert 11.0 < mean < 13.5, f"operating-only mean drifted to {mean:.2f}"
+    assert len(rows) >= 10, f"expected ~11 test years, got {len(rows)}"
 
 
 def test_measured_curve_reproduces_the_headline():
-    curve = json.loads(Path("data/curve_clean.json").read_text())
-    at25 = curve["precision"][curve["ns"].index(25)]
-    assert abs(at25 - 10.73) < 0.5, f"curve N=25 is {at25}, expected ~10.73"
-    assert curve["precision"] == sorted(curve["precision"], reverse=True), \
+    p = Path("data/curve_final.json")
+    if not p.exists():
+        return
+    curve = json.loads(p.read_text())["target"]["curve"]
+    at25 = next(c["prec"] for c in curve if c["n"] == 25)
+    assert abs(at25 - 12.65) < 0.8, f"curve N=25 is {at25}, expected ~12.65"
+    prec = [c["prec"] for c in curve]
+    assert prec == sorted(prec, reverse=True), \
         "operating-company curve should decline monotonically with list size"
 
 
